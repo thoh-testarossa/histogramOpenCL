@@ -6,6 +6,8 @@ CONFIG -= qt
 SOURCES += main.cpp
 
 DISTFILES += \
-    hello.cl
+    hello.cl \
+    README
 
-LIBS += -lOpenCL
+mac: LIBS += -framework OpenCL
+else:unix|win32: LIBS += -lOpenCL
