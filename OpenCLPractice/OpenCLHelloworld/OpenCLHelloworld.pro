@@ -7,7 +7,7 @@ SOURCES += main.cpp
 
 DISTFILES += \
     hello.cl \
-    README
+    README.md
 
 mac: LIBS += -framework OpenCL
 else:unix|win32: LIBS += -lOpenCL
