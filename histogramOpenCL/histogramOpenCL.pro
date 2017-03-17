@@ -4,3 +4,6 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 SOURCES += main.cpp
+
+mac: LIBS += -framework OpenCL
+else:unix|win32: LIBS += -lOpenCL
