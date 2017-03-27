@@ -1,0 +1,1 @@
+If you want to build this project with Qt, you should copy the .cl file to the build directory of this project (maybe one day I will find an approach to auto-copy these resource files to given build directory when compiling)
