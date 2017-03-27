@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 #ifdef __linux__
 #include <CL/cl.h>
