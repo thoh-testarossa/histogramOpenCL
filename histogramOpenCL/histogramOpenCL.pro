@@ -8,4 +8,10 @@ SOURCES += main.cpp
 mac: LIBS += -framework OpenCL
 else:unix|win32: LIBS += -lOpenCL
 
-HEADERS +=
+HEADERS += \
+    data.h \
+    aggregation.h
+
+DISTFILES += \
+    cubeAggregationGeneration.cl \
+    deviceAggregationGeneration.cl

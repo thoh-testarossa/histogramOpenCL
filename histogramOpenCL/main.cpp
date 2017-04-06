@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 #ifdef __linux__
 #include <CL/cl.h>
@@ -13,6 +14,12 @@
 #define BUILDLOGSIZE 16384
 
 using namespace std;
+
+//Todo
+//1.How to scan dataset to distribute/aggregate all datas into corresponding OLAP clubs
+
+
+//2.no idea
 
 cl_context CreateContext()
 {
@@ -185,8 +192,52 @@ cl_program CreateProgram(cl_context context, cl_device_id device, const char *fi
     return program;
 }
 
+bool CreateMemObjects(cl_context context, cl_mem memObjects[3], float *a, float *b)
+{
+}
+
 int main(int argc, char *argv[])
 {
-    cout << "Hello World!" << endl;
+    cl_context context = 0;
+    cl_command_queue commandQueue = 0;
+    cl_program program = 0;
+    cl_device_id device = 0;
+    cl_kernel kernel = 0;
+    cl_mem memObjects[3] = {0, 0, 0};
+    cl_int errNum;
+
+    //Create an OpenCL context on first available platform
+    context = CreateContext();
+    if(context == NULL)
+    {
+        cerr << "Failed to create OpenCL context." << endl;
+        return 1;
+    }
+
+    //Create a command-queue on the first device available on the created context
+    commandQueue = CreateCommandQueue(context, &device);
+    if(commandQueue == NULL)
+    {
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
+
+    //Create OpenCL program from .cl kernel source
+
+    //Create OpenCL kernel
+
+    //Create memory objects that will be used as arguments to kernel.
+    //First create host memory arrays that will be used to store the arguments to the kernel.
+
+    //Set the kernel arguments
+
+    //Queue the kernel up for execution across the array
+    //Using clEnqueueNDRangeKernel() function
+
+    //Read the output buffer back to the host
+    //Using clEnqueueReadBuffer() function
+
+    //Output the result buffer
+
     return 0;
 }
