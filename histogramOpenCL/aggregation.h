@@ -1,6 +1,9 @@
 #ifndef AGGREGATION_H
 #define AGGREGATION_H
 
+#define HIS_TYPE_EWH 10001
+#define HIS_TYPE_EHH 10002
+
 typedef struct cubeAggregation
 {
     //The data cube
