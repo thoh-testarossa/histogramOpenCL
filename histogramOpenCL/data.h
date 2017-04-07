@@ -4,7 +4,7 @@
 typedef struct data
 {
     int type_val[3];
-    double value;
+    int value;
 }data;
 
 #endif // DATA_H

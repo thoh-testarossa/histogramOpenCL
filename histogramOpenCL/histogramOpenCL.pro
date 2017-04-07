@@ -3,7 +3,8 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-SOURCES += main.cpp
+SOURCES += main.cpp \
+    aggregation.cpp
 
 mac: LIBS += -framework OpenCL
 else:unix|win32: LIBS += -lOpenCL
@@ -14,4 +15,5 @@ HEADERS += \
 
 DISTFILES += \
     cubeAggregationGeneration.cl \
-    deviceAggregationGeneration.cl
+    deviceAggregationGeneration.cl \
+    cAggAggragate.cl

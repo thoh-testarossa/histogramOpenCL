@@ -17,10 +17,10 @@ typedef struct cubeAggregation
 
     //Other information
     int totalCount;
-    double max;
-    double min;
+    int max;
+    int min;
     double avg;
-    double sum;
+    int sum;
 }cAgg;
 
 typedef struct deviceAggregation
@@ -40,10 +40,12 @@ typedef struct deviceAggregation
 
     //Other information
     int totalCount;
-    double max;
-    double min;
+    int max;
+    int min;
     double avg;
-    double sum;
+    int sum;
 }dAgg;
+
+void initCell_cAgg(cAgg *c_agg, int intervalNum);
 
 #endif // AGGREGATION_H

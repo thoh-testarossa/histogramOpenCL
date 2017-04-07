@@ -3,6 +3,9 @@
 #include <sstream>
 #include <vector>
 
+#include "aggregation.h"
+#include "data.h"
+
 #ifdef __linux__
 #include <CL/cl.h>
 #elif __APPLE__
@@ -10,8 +13,13 @@
 #else
 #endif
 
-#define BUFFERSIZE 1024
-#define BUILDLOGSIZE 16384
+#define DATASETSIZE 16384
+#define DIMX 7
+#define DIMY 11
+#define DIMZ 13
+#define HIS_INTERVAL_NUM 10
+
+#define PARAMETERSETSIZE 5
 
 using namespace std;
 
@@ -192,18 +200,36 @@ cl_program CreateProgram(cl_context context, cl_device_id device, const char *fi
     return program;
 }
 
-bool CreateMemObjects(cl_context context, cl_mem memObjects[3], float *a, float *b)
+bool CreateMemObjects(cl_context context, cl_mem memObjects[4], data *dataset, int parameterSet[PARAMETERSETSIZE], int cubeDim[3], cAgg *c_agg)
 {
+    memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(data) * DATASETSIZE, dataset, NULL);
+    memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * PARAMETERSETSIZE, parameterSet, NULL);
+    memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 3, cubeDim, NULL);
+    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(cAgg) * DIMX * DIMY * DIMZ, c_agg, NULL);
+    if(memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL || memObjects[3] == NULL)
+    {
+        cerr << "Error creating memory objects." << endl;
+        return false;
+    }
+    return true;
+}
+
+void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program program, cl_kernel kernel, cl_mem memObjects)
+{
+
 }
 
 int main(int argc, char *argv[])
 {
+    data dataset[DATASETSIZE];
+    /*Init dataset*/
+
     cl_context context = 0;
     cl_command_queue commandQueue = 0;
     cl_program program = 0;
     cl_device_id device = 0;
     cl_kernel kernel = 0;
-    cl_mem memObjects[3] = {0, 0, 0};
+    cl_mem memObjects[4] = {0, 0, 0, 0};
     cl_int errNum;
 
     //Create an OpenCL context on first available platform
@@ -223,19 +249,88 @@ int main(int argc, char *argv[])
     }
 
     //Create OpenCL program from .cl kernel source
+    program = CreateProgram(context, device, "cubeAggregationGeneration.cl");
+    if(program == NULL)
+    {
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Create OpenCL kernel
+    kernel = clCreateKernel(program, "cubeAggregationGeneration", NULL);
+    if(kernel == NULL)
+    {
+        cerr << "Failed to create kernel" << endl;
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Create memory objects that will be used as arguments to kernel.
     //First create host memory arrays that will be used to store the arguments to the kernel.
+    //void /*__kernel*/ cAggGen(/*__global*/ data *dataset, /*__global*/ int *parameterSet, /*__global*/ int *cubeDim, /*__global*/ cAgg *c_agg)
+    int parameterSet[PARAMETERSETSIZE];
+    //What's in parameter set:
+    //parameterSet[0]: datasetSize
+    //parameterSet[1]: histogram type
+    //parameterSet[2]: histogram interval number
+    //parameterSet[3]: maximum value in dataset
+    //parameterSet[4]: minimum value in dataset
+    //and?
+    parameterSet[0] = DATASETSIZE;
+    parameterSet[1] = HIS_TYPE_EWH;
+    parameterSet[2] = HIS_INTERVAL_NUM;
+
+    int cubeDim[3];
+    cubeDim[0] = DIMX, cubeDim[1] = DIMY, cubeDim[2] = DIMZ;
+
+    //cAgg initialization
+    cAgg c_agg[DIMX * DIMY * DIMZ];
+    for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
+        initCell_cAgg(c_agg[i], HIS_INTERVAL_NUM);
+
+    /*Scan dataset and get maximum and minimum value of the whole set*/
+
+
+    //Memory Object generation
+    if(!CreateMemObjects(context, memObjects, dataset, parameterSet, cubeDim, c_agg))
+    {
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Set the kernel arguments
+    errNum = clSetKernelArg(kernel, 0, sizeof(cl_mem), &memObjects[0]) |
+            clSetKernelArg(kernel, 1, sizeof(cl_mem), &memObjects[1]) |
+            clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[2]) |
+            clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[3]);
+    if(errNum != CL_SUCCESS)
+    {
+        cerr << "Error setting kernel arguments." << endl;
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Queue the kernel up for execution across the array
     //Using clEnqueueNDRangeKernel() function
+    int globalWorkSize[3] = {DIMX, DIMY, DIMZ};
+    int localWorkSize[3] = {1, 1, 1};
+    errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL);
+    if(errNum != CL_SUCCESS)
+    {
+        cerr << "Error queuing kernel for execution." << endl;
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Read the output buffer back to the host
     //Using clEnqueueReadBuffer() function
+    errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg, 0, NULL, NULL);
+    if(errNum != CL_SUCCESS)
+    {
+        cerr << "Error reading result buffer." << endl;
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Output the result buffer
 
