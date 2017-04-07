@@ -19,6 +19,8 @@
 #define DIMZ 13
 #define HIS_INTERVAL_NUM 10
 
+#define INIT_MAXIMUM -2147483648
+#define INIT_MINIMUM 2147483647
 #define PARAMETERSETSIZE 5
 
 using namespace std;
@@ -221,9 +223,11 @@ void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program progr
 
 int main(int argc, char *argv[])
 {
+    //Initialize dataset
     data dataset[DATASETSIZE];
-    /*Init dataset*/
+    randomDatasetGeneration(dataset, DATASETSIZE, DIMX, DIMY, DIMZ);
 
+    //Initialize OpenCL parameters
     cl_context context = 0;
     cl_command_queue commandQueue = 0;
     cl_program program = 0;
@@ -279,6 +283,8 @@ int main(int argc, char *argv[])
     parameterSet[0] = DATASETSIZE;
     parameterSet[1] = HIS_TYPE_EWH;
     parameterSet[2] = HIS_INTERVAL_NUM;
+    parameterSet[3] = INIT_MAXIMUM;
+    parameterSet[4] = INIT_MINIMUM;
 
     int cubeDim[3];
     cubeDim[0] = DIMX, cubeDim[1] = DIMY, cubeDim[2] = DIMZ;
@@ -288,8 +294,8 @@ int main(int argc, char *argv[])
     for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
         initCell_cAgg(c_agg[i], HIS_INTERVAL_NUM);
 
-    /*Scan dataset and get maximum and minimum value of the whole set*/
-
+    //Scan dataset and get maximum and minimum value of the whole set
+    globalMaxMinLinearScan(dataset, DATASETSIZE, &parameterSet[3], &parameterSet[4]);
 
     //Memory Object generation
     if(!CreateMemObjects(context, memObjects, dataset, parameterSet, cubeDim, c_agg))

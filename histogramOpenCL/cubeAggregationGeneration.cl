@@ -1,7 +1,7 @@
 #include "data.h"
 #include "aggregation.h"
 
-void /*__kernel*/ cAggGen(/*__global*/ data *dataset, /*__global*/ int *parameterSet, /*__global*/ int *cubeDim, /*__global*/ cAgg *c_agg)
+void __kernel cAggGen(__global data *dataset, __global int *parameterSet, __global int *cubeDim, __global cAgg *c_agg)
 {
     //One kernel one cell
 

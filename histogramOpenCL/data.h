@@ -7,4 +7,8 @@ typedef struct data
     int value;
 }data;
 
+void randomDatasetGeneration(data *dataset, int datasetSize, int dimx, int dimy, int dimz);
+
+void globalMaxMinLinearScan(data *dataset, int datasetSize, int *max, int *min);
+
 #endif // DATA_H

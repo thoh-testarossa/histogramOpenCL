@@ -4,7 +4,8 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 SOURCES += main.cpp \
-    aggregation.cpp
+    aggregation.cpp \
+    data.cpp
 
 mac: LIBS += -framework OpenCL
 else:unix|win32: LIBS += -lOpenCL
