@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
         datasetIn >> chk;
         if(chk == DATASETSIZE)
         {
-            datasetIn >> chk >> chk;
+            datasetIn >> chk >> chk >> chk;
             for(int i = 0; i < DATASETSIZE; i++)
                 datasetIn >> dataset[i].type_val[0] >> dataset[i].type_val[1] >> dataset[i].type_val[2] >> dataset[i].value;
         }
