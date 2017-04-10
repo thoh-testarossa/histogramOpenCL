@@ -13,15 +13,15 @@
 #else
 #endif
 
-#define DATASETSIZE 16384
+#define DATASETSIZE 131072
 #define DIMX 7
 #define DIMY 11
 #define DIMZ 13
-#define HIS_INTERVAL_NUM 10
 
-#define INIT_MAXIMUM -2147483648
-#define INIT_MINIMUM 2147483647
 #define PARAMETERSETSIZE 5
+
+#define BUFFERSIZE 128
+#define BUILDLOGSIZE 1024
 
 using namespace std;
 
@@ -79,23 +79,28 @@ cl_context CreateContext()
          *
          */
     }
+    //The result when testing with mac pro:
+    //Only 1 platform available: Apple
+    //So we just simply choose id = 0
+    platformIdToUse = 0;
+
     //Next, create an OpenCL context on the platform.
     //Attempt to create a GPU-based context, and if that fails, try to create a CPU-based context
     cl_context_properties contextProperties[] =
     {
         CL_CONTEXT_PLATFORM, (cl_context_properties)platformId[platformIdToUse], 0
     };
-    context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
-    if(errNum != CL_SUCCESS)
-    {
-        cout << "Could not create GPU context, trying CPU..." << endl;
+    //context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
+    //if(errNum != CL_SUCCESS)
+    //{
+    //    cout << "Could not create GPU context, trying CPU..." << endl;
         context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU, NULL, NULL, &errNum);
         if(errNum != CL_SUCCESS)
         {
             cerr << "Could not create an OpenCL GPU or CPU context." << endl;
             return NULL;
         }
-    }
+    //}
     return context;
 }
 
@@ -148,16 +153,18 @@ cl_command_queue CreateCommandQueue(cl_context context, cl_device_id *device)
          *
          */
     }
+    //Again, the result of the test shows that mac has only one gpu which can be used, so we just simply choose the first device(gpu)
+    deviceIdToUse = 0;
 
     commandQueue = clCreateCommandQueue(context, devices[deviceIdToUse], 0, NULL);
 
     if(commandQueue == NULL)
     {
-        cerr << "Failed to create commandQueue for device 0" << endl;
+        cerr << "Failed to create commandQueue for device " << (int)deviceIdToUse << endl;
         return NULL;
     }
 
-    *device = devices[0];
+    *device = devices[deviceIdToUse];
     delete [] devices;
     return commandQueue;
 }
@@ -194,7 +201,10 @@ cl_program CreateProgram(cl_context context, cl_device_id device, const char *fi
         char buildLog[BUILDLOGSIZE];
         clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
         cerr << "Error in kernel: " << endl;
-        cerr << buildLog;
+        for(int i = 0; i < BUILDLOGSIZE; i++)
+            cerr << buildLog[i];
+        cerr << endl;
+        //cerr << buildLog;
         clReleaseProgram(program);
         return NULL;
     }
@@ -207,7 +217,7 @@ bool CreateMemObjects(cl_context context, cl_mem memObjects[4], data *dataset, i
     memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(data) * DATASETSIZE, dataset, NULL);
     memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * PARAMETERSETSIZE, parameterSet, NULL);
     memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 3, cubeDim, NULL);
-    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(cAgg) * DIMX * DIMY * DIMZ, c_agg, NULL);
+    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cAgg) * DIMX * DIMY * DIMZ, c_agg, NULL);
     if(memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL || memObjects[3] == NULL)
     {
         cerr << "Error creating memory objects." << endl;
@@ -216,7 +226,7 @@ bool CreateMemObjects(cl_context context, cl_mem memObjects[4], data *dataset, i
     return true;
 }
 
-void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program program, cl_kernel kernel, cl_mem memObjects)
+void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program program, cl_kernel kernel, cl_mem *memObjects)
 {
 
 }
@@ -261,7 +271,7 @@ int main(int argc, char *argv[])
     }
 
     //Create OpenCL kernel
-    kernel = clCreateKernel(program, "cubeAggregationGeneration", NULL);
+    kernel = clCreateKernel(program, "cAggGen", NULL);
     if(kernel == NULL)
     {
         cerr << "Failed to create kernel" << endl;
@@ -291,8 +301,10 @@ int main(int argc, char *argv[])
 
     //cAgg initialization
     cAgg c_agg[DIMX * DIMY * DIMZ];
-    for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
-        initCell_cAgg(c_agg[i], HIS_INTERVAL_NUM);
+    cAgg c_agg_result[DIMX * DIMY * DIMZ];
+    for(int i = 0; i < DIMX * DIMY * DIMZ; i++) c_agg_result[i].histogramType = 99999;
+    //for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
+        //initCell_cAgg(&c_agg[i]);
 
     //Scan dataset and get maximum and minimum value of the whole set
     globalMaxMinLinearScan(dataset, DATASETSIZE, &parameterSet[3], &parameterSet[4]);
@@ -305,10 +317,10 @@ int main(int argc, char *argv[])
     }
 
     //Set the kernel arguments
-    errNum = clSetKernelArg(kernel, 0, sizeof(cl_mem), &memObjects[0]) |
-            clSetKernelArg(kernel, 1, sizeof(cl_mem), &memObjects[1]) |
-            clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[2]) |
-            clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[3]);
+    errNum = clSetKernelArg(kernel, 0, sizeof(cl_mem), &memObjects[0]);
+    errNum |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &memObjects[1]);
+    errNum |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[2]);
+    errNum |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[3]);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error setting kernel arguments." << endl;
@@ -318,9 +330,9 @@ int main(int argc, char *argv[])
 
     //Queue the kernel up for execution across the array
     //Using clEnqueueNDRangeKernel() function
-    int globalWorkSize[3] = {DIMX, DIMY, DIMZ};
-    int localWorkSize[3] = {1, 1, 1};
-    errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 3, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL);
+    size_t globalWorkSize[1] = {DIMX * DIMY * DIMZ};
+    size_t localWorkSize[1] = {1};
+    errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error queuing kernel for execution." << endl;
@@ -330,7 +342,7 @@ int main(int argc, char *argv[])
 
     //Read the output buffer back to the host
     //Using clEnqueueReadBuffer() function
-    errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg, 0, NULL, NULL);
+    errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, NULL);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error reading result buffer." << endl;
@@ -339,6 +351,24 @@ int main(int argc, char *argv[])
     }
 
     //Output the result buffer
+    for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
+    {
+        cout << c_agg_result[i].cubeNum << endl;
+        cout << c_agg_result[i].totalCount << endl;
+        cout << c_agg_result[i].max << " " << c_agg_result[i].min << endl;
+        cout << c_agg_result[i].sum << endl;
+        //cout << c_agg_result[i].avg << endl;
+
+        for(int j = 0; j <= HIS_INTERVAL_NUM; j++)
+        {
+            cout << c_agg_result[i].histogramIntervalMark[j];
+            if(j < HIS_INTERVAL_NUM)
+                cout << " " << c_agg_result[i].histogramIntervalCount[j];
+            cout << endl;
+        }
+
+        cout << endl;
+    }
 
     return 0;
 }

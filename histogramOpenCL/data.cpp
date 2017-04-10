@@ -12,7 +12,7 @@ void randomDatasetGeneration(data *dataset, int datasetSize, int dimx, int dimy,
         dataset[i].type_val[0] = rand() % dimx;
         dataset[i].type_val[1] = rand() % dimy;
         dataset[i].type_val[2] = rand() % dimz;
-        dataset[i].value = 32768 * rand() % 32768 + rand() % 32768;
+        dataset[i].value = /*(32768 * (rand() % 32768))*/ + (rand() % 32768);
     }
 }
 
