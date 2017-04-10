@@ -235,7 +235,38 @@ int main(int argc, char *argv[])
 {
     //Initialize dataset
     data dataset[DATASETSIZE];
-    randomDatasetGeneration(dataset, DATASETSIZE, DIMX, DIMY, DIMZ);
+    bool needToGenerate = false;
+    ifstream datasetIn = ifstream("dataset.txt", ios::in);
+    if(datasetIn.is_open())
+    {
+        int chk;
+        datasetIn >> chk;
+        if(chk == DATASETSIZE)
+        {
+            datasetIn >> chk >> chk;
+            for(int i = 0; i < DATASETSIZE; i++)
+                datasetIn >> dataset[i].type_val[0] >> dataset[i].type_val[1] >> dataset[i].type_val[2] >> dataset[i].value;
+        }
+        else
+        {
+            datasetIn.close();
+            needToGenerate = true;
+        }
+    }
+    if(!datasetIn.is_open() || needToGenerate)
+    {
+        randomDatasetGeneration(dataset, DATASETSIZE, DIMX, DIMY, DIMZ);
+        ofstream datasetOut = ofstream("dataset.txt", ios::out);
+        datasetOut << DATASETSIZE << " " << DIMX << " " << DIMY << " " << DIMZ << endl;
+        for(int i = 0; i < DATASETSIZE; i++)
+        {
+            datasetOut << dataset[i].type_val[0] << " " << dataset[i].type_val[1] << " " <<  dataset[i].type_val[2] << " ";
+            datasetOut << dataset[i].value << endl;
+        }
+        datasetOut.close();
+    }
+
+    datasetIn.close();
 
     //Initialize OpenCL parameters
     cl_context context = 0;
