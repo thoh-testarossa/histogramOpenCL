@@ -93,7 +93,7 @@ cl_context CreateContext()
     //context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
     //if(errNum != CL_SUCCESS)
     //{
-    //    cout << "Could not create GPU context, trying CPU..." << endl;
+        //cout << "Could not create GPU context, trying CPU..." << endl;
         context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU, NULL, NULL, &errNum);
         if(errNum != CL_SUCCESS)
         {

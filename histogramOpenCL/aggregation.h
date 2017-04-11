@@ -9,6 +9,10 @@
 
 #define HIS_INTERVAL_NUM 10
 
+#define X_AGGREGATE 11001
+#define Y_AGGREGATE 11002
+#define Z_AGGREGATE 11003
+
 typedef struct cubeAggregation
 {
     //The data cube
