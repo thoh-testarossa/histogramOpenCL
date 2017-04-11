@@ -17,4 +17,4 @@ HEADERS += \
 DISTFILES += \
     cubeAggregationGeneration.cl \
     deviceAggregationGeneration.cl \
-    cAggAggragate.cl
+    cAggAggregate.cl
