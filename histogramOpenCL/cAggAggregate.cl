@@ -53,6 +53,11 @@ void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg
     c_agg_gen[axisInGenCube].min = INIT_MINIMUM;
     c_agg_gen[axisInGenCube].type_val[3] = {axisX, axisY, axisZ};
 
+    cubeDim_gen[0] = cubeDim[0], cubeDim_gen[1] = cubeDim[1], cubeDim_gen[2] = cubeDim[2];
+    if(dimToAggregate[0] == X_AGGREGATE) cubeDim_gen[0] = 1;
+    else if(dimToAggregate[0] == Y_AGGREGATE) cubeDim_gen[1] = 1;
+    else if(dimToAggregate[0] == Z_AGGREGATE) cubeDim_gen[2] = 1;
+
     //if Z_AGGREGATE, we aggregate c_agg into c_agg_gen at Z dimension
     //How can we use axisInCube of a cell in c_agg to determine which cell in c_agg_gen will the cell be aggregated into?
     //Hint: The cells which type_val[0] and type_val[1] are both the same can be aggregated into one cell in c_agg_gen, which means the cells which axisInCube / DIMZ are the same can be aggregated into one cell

@@ -64,4 +64,6 @@ typedef struct deviceAggregation
 
 void initCell_cAgg(cAgg *c_agg);
 
+int decideDimensionToAggregate(int cubeDim[3]);
+
 #endif // AGGREGATION_H
