@@ -1,3 +1,5 @@
+#include "base.h"
+
 #ifndef AGGREGATION_H
 #define AGGREGATION_H
 
@@ -43,23 +45,9 @@ typedef struct deviceAggregation
     //The device number
     int device;
 
-    //Histogram information
-    int typeDimension[3]; //Only valid dimensions have a value that greater then 0 otherwise it's 0
-    int histogramIntervalNum;
-    int histogramIntervalMark[HIS_INTERVAL_NUM + 1];
-    int histogramIntervalCount[HIS_INTERVAL_NUM + 1];
-                                 //Uses one-dimension array to simulate multiple dimensional histogram:
-                                 //(axisX, axisY, axisZ) -> axisX * dimY * dimZ + axisY * dimZ + axisZ
-                                 //histogram bars in (axisX, axisY, axisZ)
-                                 //4 dimension(?)
-                                 //For example: typeX = a, typeY = b, typeZ = c and value between (d, e)
+    //dAgg is a complete cAgg of a subset of dataset
+    cAgg d_c_agg[DIMX * DIMY * DIMZ];
 
-    //Other information
-    int totalCount;
-    int max;
-    int min;
-    double avg;
-    int sum;
 }dAgg;
 
 void initCell_cAgg(cAgg *c_agg);

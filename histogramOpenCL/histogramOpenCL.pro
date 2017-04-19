@@ -12,7 +12,8 @@ else:unix|win32: LIBS += -lOpenCL
 
 HEADERS += \
     data.h \
-    aggregation.h
+    aggregation.h \
+    base.h
 
 DISTFILES += \
     cubeAggregationGeneration.cl \

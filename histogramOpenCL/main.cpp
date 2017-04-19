@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 
+#include <ctime>
+
 #include "aggregation.h"
 #include "data.h"
 
@@ -13,10 +15,7 @@
 #else
 #endif
 
-#define DATASETSIZE 131072
-#define DIMX 7
-#define DIMY 11
-#define DIMZ 13
+#define DATASETSIZE 16777216
 
 #define PARAMETERSETSIZE 5
 
@@ -156,7 +155,7 @@ cl_command_queue CreateCommandQueue(cl_context context, cl_device_id *device)
     //Again, the result of the test shows that mac has only one gpu which can be used, so we just simply choose the first device(gpu)
     deviceIdToUse = 0;
 
-    commandQueue = clCreateCommandQueue(context, devices[deviceIdToUse], 0, NULL);
+    commandQueue = clCreateCommandQueue(context, devices[deviceIdToUse], CL_QUEUE_PROFILING_ENABLE, NULL);
 
     if(commandQueue == NULL)
     {
@@ -233,25 +232,28 @@ void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program progr
 
 int main(int argc, char *argv[])
 {
+    int time_0 = clock();
+    cout << time_0 << endl;
+
     //Initialize dataset
-    data dataset[DATASETSIZE];
+    data *dataset = new data [DATASETSIZE];
     bool needToGenerate = false;
     ifstream datasetIn = ifstream("dataset.txt", ios::in);
     if(datasetIn.is_open())
     {
-        int chk;
-        datasetIn >> chk;
-        if(chk == DATASETSIZE)
+        int tmp;
+        datasetIn >> tmp; needToGenerate |= (tmp != DATASETSIZE);
+        datasetIn >> tmp; needToGenerate |= (tmp != DIMX);
+        datasetIn >> tmp; needToGenerate |= (tmp != DIMY);
+        datasetIn >> tmp; needToGenerate |= (tmp != DIMZ);
+
+        if(!needToGenerate)
         {
-            datasetIn >> chk >> chk >> chk;
             for(int i = 0; i < DATASETSIZE; i++)
                 datasetIn >> dataset[i].type_val[0] >> dataset[i].type_val[1] >> dataset[i].type_val[2] >> dataset[i].value;
         }
         else
-        {
             datasetIn.close();
-            needToGenerate = true;
-        }
     }
     if(!datasetIn.is_open() || needToGenerate)
     {
@@ -267,6 +269,9 @@ int main(int argc, char *argv[])
     }
 
     datasetIn.close();
+
+    int time_1 = clock();
+    cout << time_1 << endl;
 
     //Initialize OpenCL parameters
     cl_context context = 0;
@@ -309,6 +314,9 @@ int main(int argc, char *argv[])
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }
+
+    int time_2 = clock();
+    cout << time_2 << endl;
 
     //Create memory objects that will be used as arguments to kernel.
     //First create host memory arrays that will be used to store the arguments to the kernel.
@@ -359,29 +367,51 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    int time_3 = clock();
+    cout << time_3 << endl;
+
     //Queue the kernel up for execution across the array
     //Using clEnqueueNDRangeKernel() function
+    cl_ulong time_4_start;
+    cl_ulong time_4_mid1;
+    cl_ulong time_4_mid2;
+    cl_ulong time_4_end;
+
     size_t globalWorkSize[1] = {DIMX * DIMY * DIMZ};
     size_t localWorkSize[1] = {1};
-    errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL);
+    cl_event event;
+    errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error queuing kernel for execution." << endl;
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }
+    clWaitForEvents(1, &event);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(time_4_start), &time_4_start, NULL);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(time_4_mid1), &time_4_mid1, NULL);
 
     //Read the output buffer back to the host
     //Using clEnqueueReadBuffer() function
-    errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, NULL);
+    errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, &event);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error reading result buffer." << endl;
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }
+    clWaitForEvents(1, &event);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(time_4_mid2), &time_4_mid2, NULL);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(time_4_end), &time_4_end, NULL);
+
+    int time_4 = clock();
+    cout << time_4 << endl;
+
+    //Summary
+    cout << endl << "Summary:" << endl << endl;
 
     //Output the result buffer
+
     for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
     {
         cout << c_agg_result[i].cubeNum << endl;
@@ -400,6 +430,20 @@ int main(int argc, char *argv[])
 
         cout << endl;
     }
+
+    cout << endl;
+
+    //Output running time
+
+    //Program initialization & Reading/Generating data part
+    cout << "Program initialization & Reading/Generating data part:" << endl << (double)(time_1 - time_0) / CLOCKS_PER_SEC << endl;
+    //OpenCL initialization part
+    cout << "OpenCL initialization part:" << endl << (double)(time_2 - time_1) / CLOCKS_PER_SEC << endl;
+    //Memory setting & copying part
+    cout << "Memory setting & copying in part:" << endl << (double)(time_3 - time_2) / CLOCKS_PER_SEC << endl;
+    //Running part
+    cout << "Running part(Executing):" << endl << (double)(time_4_mid1 - time_4_start) / CLOCKS_PER_SEC / 1000 << endl;
+    cout << "Running part(copying out):" << endl << (double)(time_4_end - time_4_mid2) / CLOCKS_PER_SEC / 1000 << endl;
 
     return 0;
 }
