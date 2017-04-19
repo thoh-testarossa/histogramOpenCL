@@ -9,3 +9,5 @@ Multicore cube generation using OpenCL
 Multicore cell aggregation from generated cube aggregation using OpenCL
 
 An evaluation function to determine which dimension is optimal to be aggregated in this time to reach target aggregation cube
+
+Some benckmark functions to measure performance
