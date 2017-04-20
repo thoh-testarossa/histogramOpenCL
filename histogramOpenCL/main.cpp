@@ -17,10 +17,12 @@
 
 #define DATASETSIZE 16777216
 
-#define PARAMETERSETSIZE 5
+#define PARAMETERSETSIZE 6
 
 #define BUFFERSIZE 128
 #define BUILDLOGSIZE 1024
+
+#define KERNELNUMBER 16
 
 using namespace std;
 
@@ -211,7 +213,7 @@ cl_program CreateProgram(cl_context context, cl_device_id device, const char *fi
     return program;
 }
 
-bool CreateMemObjects(cl_context context, cl_mem memObjects[4], data *dataset, int parameterSet[PARAMETERSETSIZE], int cubeDim[3], cAgg *c_agg)
+bool CreateMemObjects_cAgg(cl_context context, cl_mem memObjects[4], data *dataset, int parameterSet[PARAMETERSETSIZE], int cubeDim[3], cAgg *c_agg)
 {
     memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(data) * DATASETSIZE, dataset, NULL);
     memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * PARAMETERSETSIZE, parameterSet, NULL);
@@ -299,14 +301,23 @@ int main(int argc, char *argv[])
     }
 
     //Create OpenCL program from .cl kernel source
+    //cAgg part
     program = CreateProgram(context, device, "cubeAggregationGeneration.cl");
     if(program == NULL)
     {
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }
+    //dAgg part
+    /*program = CreateProgram(context, device, "deviceAggregationGeneration.cl");
+    if(program == NULL)
+    {
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }*/
 
     //Create OpenCL kernel
+    //cAgg part
     kernel = clCreateKernel(program, "cAggGen", NULL);
     if(kernel == NULL)
     {
@@ -314,6 +325,14 @@ int main(int argc, char *argv[])
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }
+    //dAgg part
+    /*kernel = clCreateKernel(program, "dAggGen", NULL);
+    if(kernel == NULL)
+    {
+        cerr << "Failed to create kernel" << endl;
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }*/
 
     int time_2 = clock();
     cout << time_2 << endl;
@@ -328,12 +347,14 @@ int main(int argc, char *argv[])
     //parameterSet[2]: histogram interval number
     //parameterSet[3]: maximum value in dataset
     //parameterSet[4]: minimum value in dataset
+    //ParameterSet[5]: number of executing kernel (only used in dAgg mode)
     //and?
     parameterSet[0] = DATASETSIZE;
     parameterSet[1] = HIS_TYPE_EWH;
     parameterSet[2] = HIS_INTERVAL_NUM;
     parameterSet[3] = INIT_MAXIMUM;
     parameterSet[4] = INIT_MINIMUM;
+    parameterSet[5] = KERNELNUMBER;
 
     int cubeDim[3];
     cubeDim[0] = DIMX, cubeDim[1] = DIMY, cubeDim[2] = DIMZ;
@@ -344,12 +365,15 @@ int main(int argc, char *argv[])
     for(int i = 0; i < DIMX * DIMY * DIMZ; i++) c_agg_result[i].histogramType = 99999;
     //for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
         //initCell_cAgg(&c_agg[i]);
+    //dAgg initialization
+    dAgg d_agg[DIMX * DIMY * DIMZ];
+    dAgg d_agg_result[DIMX * DIMY * DIMZ];
 
     //Scan dataset and get maximum and minimum value of the whole set
     globalMaxMinLinearScan(dataset, DATASETSIZE, &parameterSet[3], &parameterSet[4]);
 
     //Memory Object generation
-    if(!CreateMemObjects(context, memObjects, dataset, parameterSet, cubeDim, c_agg))
+    if(!CreateMemObjects_cAgg(context, memObjects, dataset, parameterSet, cubeDim, c_agg))
     {
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
@@ -377,7 +401,9 @@ int main(int argc, char *argv[])
     cl_ulong time_4_mid2;
     cl_ulong time_4_end;
 
-    size_t globalWorkSize[1] = {DIMX * DIMY * DIMZ};
+    //Determine global kernel size (?)
+    /*cAgg*/size_t globalWorkSize[1] = {DIMX * DIMY * DIMZ};
+    /*dAgg*///size_t globalWorkSize[1] = {KERNELNUMBER};
     size_t localWorkSize[1] = {1};
     cl_event event;
     errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
@@ -393,7 +419,8 @@ int main(int argc, char *argv[])
 
     //Read the output buffer back to the host
     //Using clEnqueueReadBuffer() function
-    errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, &event);
+    /*cAgg*/errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, &event);
+    /*dAgg*///errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(dAgg), d_agg_result, 0, NULL, &event);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error reading result buffer." << endl;
@@ -403,6 +430,13 @@ int main(int argc, char *argv[])
     clWaitForEvents(1, &event);
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(time_4_mid2), &time_4_mid2, NULL);
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(time_4_end), &time_4_end, NULL);
+
+    //dAgg -> cAgg part
+    /*
+     *
+     *
+     *
+     */
 
     int time_4 = clock();
     cout << time_4 << endl;
