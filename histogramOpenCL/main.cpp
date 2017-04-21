@@ -227,6 +227,20 @@ bool CreateMemObjects_cAgg(cl_context context, cl_mem memObjects[4], data *datas
     return true;
 }
 
+bool CreateMemObjects_dAgg(cl_context context, cl_mem memObjects[4], data *dataset, int parameterSet[PARAMETERSETSIZE], int cubeDim[3], dAgg *d_agg)
+{
+    memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(data) * DATASETSIZE, dataset, NULL);
+    memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * PARAMETERSETSIZE, parameterSet, NULL);
+    memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 3, cubeDim, NULL);
+    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(dAgg) * KERNELNUMBER, d_agg, NULL);
+    if(memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL || memObjects[3] == NULL)
+    {
+        cerr << "Error creating memory objects." << endl;
+        return false;
+    }
+    return true;
+}
+
 void Cleanup(cl_context context, cl_command_queue commandQueue, cl_program program, cl_kernel kernel, cl_mem *memObjects)
 {
 
@@ -302,37 +316,37 @@ int main(int argc, char *argv[])
 
     //Create OpenCL program from .cl kernel source
     //cAgg part
-    program = CreateProgram(context, device, "cubeAggregationGeneration.cl");
-    if(program == NULL)
-    {
-        Cleanup(context, commandQueue, program, kernel, memObjects);
-        return 1;
-    }
-    //dAgg part
-    /*program = CreateProgram(context, device, "deviceAggregationGeneration.cl");
+    /*program = CreateProgram(context, device, "cubeAggregationGeneration.cl");
     if(program == NULL)
     {
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }*/
+    //dAgg part
+    program = CreateProgram(context, device, "deviceAggregationGeneration.cl");
+    if(program == NULL)
+    {
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     //Create OpenCL kernel
     //cAgg part
-    kernel = clCreateKernel(program, "cAggGen", NULL);
-    if(kernel == NULL)
-    {
-        cerr << "Failed to create kernel" << endl;
-        Cleanup(context, commandQueue, program, kernel, memObjects);
-        return 1;
-    }
-    //dAgg part
-    /*kernel = clCreateKernel(program, "dAggGen", NULL);
+    /*kernel = clCreateKernel(program, "cAggGen", NULL);
     if(kernel == NULL)
     {
         cerr << "Failed to create kernel" << endl;
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
     }*/
+    //dAgg part
+    kernel = clCreateKernel(program, "dAggGen", NULL);
+    if(kernel == NULL)
+    {
+        cerr << "Failed to create kernel" << endl;
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }
 
     int time_2 = clock();
     cout << time_2 << endl;
@@ -366,14 +380,21 @@ int main(int argc, char *argv[])
     //for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
         //initCell_cAgg(&c_agg[i]);
     //dAgg initialization
-    dAgg d_agg[DIMX * DIMY * DIMZ];
-    dAgg d_agg_result[DIMX * DIMY * DIMZ];
+    dAgg *d_agg = new dAgg[KERNELNUMBER];
+    dAgg *d_agg_result = new dAgg[KERNELNUMBER];
 
     //Scan dataset and get maximum and minimum value of the whole set
     globalMaxMinLinearScan(dataset, DATASETSIZE, &parameterSet[3], &parameterSet[4]);
 
     //Memory Object generation
-    if(!CreateMemObjects_cAgg(context, memObjects, dataset, parameterSet, cubeDim, c_agg))
+    //cAgg part
+    /*if(!CreateMemObjects_cAgg(context, memObjects, dataset, parameterSet, cubeDim, c_agg))
+    {
+        Cleanup(context, commandQueue, program, kernel, memObjects);
+        return 1;
+    }*/
+    //dAgg part
+    if(!CreateMemObjects_dAgg(context, memObjects, dataset, parameterSet, cubeDim, d_agg))
     {
         Cleanup(context, commandQueue, program, kernel, memObjects);
         return 1;
@@ -402,8 +423,8 @@ int main(int argc, char *argv[])
     cl_ulong time_4_end;
 
     //Determine global kernel size (?)
-    /*cAgg*/size_t globalWorkSize[1] = {DIMX * DIMY * DIMZ};
-    /*dAgg*///size_t globalWorkSize[1] = {KERNELNUMBER};
+    /*cAgg*///size_t globalWorkSize[1] = {DIMX * DIMY * DIMZ};
+    /*dAgg*/size_t globalWorkSize[1] = {KERNELNUMBER};
     size_t localWorkSize[1] = {1};
     cl_event event;
     errNum = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, &event);
@@ -419,8 +440,8 @@ int main(int argc, char *argv[])
 
     //Read the output buffer back to the host
     //Using clEnqueueReadBuffer() function
-    /*cAgg*/errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, &event);
-    /*dAgg*///errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(dAgg), d_agg_result, 0, NULL, &event);
+    /*cAgg*///errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, DIMX * DIMY * DIMZ * sizeof(cAgg), c_agg_result, 0, NULL, &event);
+    /*dAgg*/errNum = clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, KERNELNUMBER * sizeof(dAgg), d_agg_result, 0, NULL, &event);
     if(errNum != CL_SUCCESS)
     {
         cerr << "Error reading result buffer." << endl;
@@ -431,12 +452,31 @@ int main(int argc, char *argv[])
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(time_4_mid2), &time_4_mid2, NULL);
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(time_4_end), &time_4_end, NULL);
 
+    int time_4_0 = clock();
+    cout << time_4_0 << endl;
+
     //dAgg -> cAgg part
-    /*
-     *
-     *
-     *
-     */
+    for(int i = 0; i < KERNELNUMBER; i++)
+    {
+        for(int j = 0; j < DIMX * DIMY * DIMZ; j++)
+        {
+            c_agg_result[j].cubeNum = j;
+            c_agg_result[j].totalCount += d_agg_result[i].d_c_agg[j].totalCount;
+            c_agg_result[j].sum += d_agg_result[i].d_c_agg[j].sum;
+
+            if(i == 0 | c_agg_result[j].max < d_agg_result[i].d_c_agg[j].max)
+                c_agg_result[j].max = d_agg_result[i].d_c_agg[j].max;
+            if(i == 0 | c_agg_result[j].min > d_agg_result[i].d_c_agg[j].min)
+                c_agg_result[j].min = d_agg_result[i].d_c_agg[j].min;
+
+            for(int k = 0; k <= HIS_INTERVAL_NUM; k++)
+            {
+                c_agg_result[j].histogramIntervalMark[k] = d_agg_result[i].d_c_agg[j].histogramIntervalMark[k];
+                if(k < HIS_INTERVAL_NUM)
+                    c_agg_result[j].histogramIntervalCount[k] += d_agg_result[i].d_c_agg[j].histogramIntervalCount[k];
+            }
+        }
+    }
 
     int time_4 = clock();
     cout << time_4 << endl;
@@ -445,7 +485,7 @@ int main(int argc, char *argv[])
     cout << endl << "Summary:" << endl << endl;
 
     //Output the result buffer
-
+    //cAgg part
     for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
     {
         cout << c_agg_result[i].cubeNum << endl;
@@ -464,20 +504,23 @@ int main(int argc, char *argv[])
 
         cout << endl;
     }
+    //dAgg part
 
     cout << endl;
 
     //Output running time
+    double total_running_time = (double)(time_2 - time_1) / CLOCKS_PER_SEC + (double)(time_3 - time_2) / CLOCKS_PER_SEC + (double)(time_4_mid1 - time_4_start) / CLOCKS_PER_SEC / 1000 + (double)(time_4_end - time_4_mid2) / CLOCKS_PER_SEC / 1000 + (double)(time_4 - time_4_0) / CLOCKS_PER_SEC;
 
     //Program initialization & Reading/Generating data part
     cout << "Program initialization & Reading/Generating data part:" << endl << (double)(time_1 - time_0) / CLOCKS_PER_SEC << endl;
     //OpenCL initialization part
-    cout << "OpenCL initialization part:" << endl << (double)(time_2 - time_1) / CLOCKS_PER_SEC << endl;
+    cout << "OpenCL initialization part:" << endl << (double)(time_2 - time_1) / CLOCKS_PER_SEC << " " << (double)(time_2 - time_1) / CLOCKS_PER_SEC / total_running_time * 100 << "%" << endl;
     //Memory setting & copying part
-    cout << "Memory setting & copying in part:" << endl << (double)(time_3 - time_2) / CLOCKS_PER_SEC << endl;
+    cout << "Memory setting & copying in part:" << endl << (double)(time_3 - time_2) / CLOCKS_PER_SEC << " " << (double)(time_3 - time_2) / CLOCKS_PER_SEC / total_running_time * 100 << "%" << endl;
     //Running part
-    cout << "Running part(Executing):" << endl << (double)(time_4_mid1 - time_4_start) / CLOCKS_PER_SEC / 1000 << endl;
-    cout << "Running part(copying out):" << endl << (double)(time_4_end - time_4_mid2) / CLOCKS_PER_SEC / 1000 << endl;
+    cout << "Running part(Executing):" << endl << (double)(time_4_mid1 - time_4_start) / CLOCKS_PER_SEC / 1000 << " " << (double)(time_4_mid1 - time_4_start) / CLOCKS_PER_SEC / 1000 / total_running_time * 100 << "%" << endl;
+    cout << "Running part(copying out):" << endl << (double)(time_4_end - time_4_mid2) / CLOCKS_PER_SEC / 1000 << " " << (double)(time_4_end - time_4_mid2) / CLOCKS_PER_SEC / 1000 / total_running_time * 100 << "%" << endl;
+    cout << "dAgg -> cAgg part:" << endl << (double)(time_4 - time_4_0) / CLOCKS_PER_SEC << " " << (double)(time_4 - time_4_0) / CLOCKS_PER_SEC / total_running_time * 100 << "%" << endl;
 
     return 0;
 }

@@ -1,7 +1,7 @@
 #include "data.h"
 #include "aggregation.h"
 
-void /*__kernel*/ dAggGen(/*__global*/ data *dataset, /*__global*/ int *parameterSet, /*__global*/ int *cubeDim, /*__global*/ dAgg *d_agg)
+void __kernel dAggGen(__global data *dataset, __global int *parameterSet, __global int *cubeDim, __global dAgg *d_agg)
 {
     //One kernel one subset
     //A precomputation is done to determine which subset of the whole dataset should be used to compute by this kernel
@@ -85,8 +85,8 @@ void /*__kernel*/ dAggGen(/*__global*/ data *dataset, /*__global*/ int *paramete
         d_agg[deviceId].d_c_agg[dataPos].sum +=dataset[i].value;
         d_agg[deviceId].d_c_agg[dataPos].totalCount++;
 
-        if(dataset[i].value > d_agg[deviceId].d_c_agg[dataPos].max) d_agg[deviceId].d_c_agg[dataPos].max = dataset[i];
-        if(dataset[i].value < d_agg[deviceId].d_c_agg[dataPos].min) d_agg[deviceId].d_c_agg[dataPos].min = dataset[i];
+        if(dataset[i].value > d_agg[deviceId].d_c_agg[dataPos].max) d_agg[deviceId].d_c_agg[dataPos].max = dataset[i].value;
+        if(dataset[i].value < d_agg[deviceId].d_c_agg[dataPos].min) d_agg[deviceId].d_c_agg[dataPos].min = dataset[i].value;
 
         if(parameterSet[1] == HIS_TYPE_EWH) d_agg[deviceId].d_c_agg[dataPos].histogramIntervalCount[(dataset[i].value - min_modified) / intervalVal_ewh]++;
     }
