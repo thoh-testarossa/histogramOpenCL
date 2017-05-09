@@ -1,11 +1,11 @@
 #include "data.h"
 #include "aggregation.h"
 
-void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg *c_agg_gen, /*__global*/ int cubeDim[3], /*__global*/ int cubeDim_gen[3], /*__global*/ int dimToAggregate[1])
+void __kernel dimensionAggregate(__global cAgg *c_agg, __global cAgg *c_agg_gen, __global int *cubeDim, __global int *cubeDim_gen, __global int *dimToAggregate)
 {
     int axisInGenCube = get_global_id(0);
 
-    c_agg[axisInGenCube].cubeNum = axisInGenCube;
+    c_agg_gen[axisInGenCube].cubeNum = axisInGenCube;
 
     int axisX, axisY, axisZ;
 
@@ -35,13 +35,15 @@ void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg
     }
 
     //Initial some parameters
-    if(c_agg_gen[axisInGenCube].histogramType == HIS_TYPE_EWH)
+    if(c_agg[0].histogramType == HIS_TYPE_EWH)
     {
-        //Because some following parameters are all the same in any cell in c_agg, so we can do like this even if in fact the cell c_agg_gen[axisInGenCube]'s corresponding cell isn't c_agg[axisInGenCube]
-        c_agg_gen[axisInGenCube].ewh_interval_distance = c_agg[axisInGenCube].ewh_interval_distance;
+        //Because some following parameters are all the same in any cell in c_agg, so we can do like this even if in fact the cell c_agg_gen[0]'s corresponding cell isn't c_agg[axisInGenCube]
+        c_agg_gen[axisInGenCube].histogramType = HIS_TYPE_EWH;
+        c_agg_gen[axisInGenCube].ewh_interval_distance = c_agg[0].ewh_interval_distance;
+        c_agg_gen[axisInGenCube].histogramIntervalNum = c_agg[0].histogramIntervalNum;
         for(int i = 0; i <= c_agg_gen[axisInGenCube].histogramIntervalNum; i++)
         {
-            c_agg_gen[axisInGenCube].histogramIntervalMark[i] == c_agg[axisInGenCube].histogramIntervalMark[i];
+            c_agg_gen[axisInGenCube].histogramIntervalMark[i] = c_agg[0].histogramIntervalMark[i];
             if(i < c_agg_gen[axisInGenCube].histogramIntervalNum) c_agg_gen[axisInGenCube].histogramIntervalCount[i] = 0;
         }
         c_agg_gen[axisInGenCube].max_modified = c_agg[axisInGenCube].max_modified;
@@ -51,7 +53,9 @@ void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg
     c_agg_gen[axisInGenCube].sum = 0;
     c_agg_gen[axisInGenCube].max = INIT_MAXIMUM;
     c_agg_gen[axisInGenCube].min = INIT_MINIMUM;
-    c_agg_gen[axisInGenCube].type_val[3] = {axisX, axisY, axisZ};
+    c_agg_gen[axisInGenCube].type_val[0] = axisX;
+    c_agg_gen[axisInGenCube].type_val[1] = axisY;
+    c_agg_gen[axisInGenCube].type_val[2] = axisZ;
 
     cubeDim_gen[0] = cubeDim[0], cubeDim_gen[1] = cubeDim[1], cubeDim_gen[2] = cubeDim[2];
     if(dimToAggregate[0] == X_AGGREGATE) cubeDim_gen[0] = 1;
@@ -70,7 +74,7 @@ void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg
             //Aggregate c_agg[axisX * cubeDim[1] * cubeDim[2] + axisY * cubeDim[2] + i] into c_agg_gen[axisInGenCube]
             if(c_agg_gen[axisInGenCube].max < c_agg[axisInCube].max)
                 c_agg_gen[axisInGenCube].max = c_agg[axisInCube].max;
-            if(c_agg_gen[axisInGenCube].min < c_agg[axisInCube].min)
+            if(c_agg_gen[axisInGenCube].min > c_agg[axisInCube].min)
                 c_agg_gen[axisInGenCube].min = c_agg[axisInCube].min;
             c_agg_gen[axisInGenCube].totalCount += c_agg[axisInCube].totalCount;
             c_agg_gen[axisInGenCube].sum += c_agg[axisInCube].sum;
@@ -95,7 +99,7 @@ void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg
             //Aggregate c_agg[axisX * cubeDim[1] * cubeDim[2] + (i * cubeDim[2]) + axisZ] into c_agg_gen[axisInGenCube]
             if(c_agg_gen[axisInGenCube].max < c_agg[axisInCube].max)
                 c_agg_gen[axisInGenCube].max = c_agg[axisInCube].max;
-            if(c_agg_gen[axisInGenCube].min < c_agg[axisInCube].min)
+            if(c_agg_gen[axisInGenCube].min > c_agg[axisInCube].min)
                 c_agg_gen[axisInGenCube].min = c_agg[axisInCube].min;
             c_agg_gen[axisInGenCube].totalCount += c_agg[axisInCube].totalCount;
             c_agg_gen[axisInGenCube].sum += c_agg[axisInCube].sum;
@@ -120,7 +124,7 @@ void /*__kernel*/ dimensionAggregate(/*__global*/ cAgg *c_agg, /*__global*/ cAgg
             //Aggregate c_agg[i * cubeDim[1] * cubeDim[2] + axisY * cubeDim[2] + axisZ] into c_agg_gen[axisInGenCube]
             if(c_agg_gen[axisInGenCube].max < c_agg[axisInCube].max)
                 c_agg_gen[axisInGenCube].max = c_agg[axisInCube].max;
-            if(c_agg_gen[axisInGenCube].min < c_agg[axisInCube].min)
+            if(c_agg_gen[axisInGenCube].min > c_agg[axisInCube].min)
                 c_agg_gen[axisInGenCube].min = c_agg[axisInCube].min;
             c_agg_gen[axisInGenCube].totalCount += c_agg[axisInCube].totalCount;
             c_agg_gen[axisInGenCube].sum += c_agg[axisInCube].sum;
