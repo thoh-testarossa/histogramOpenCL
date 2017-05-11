@@ -15,7 +15,7 @@
 #else
 #endif
 
-#define DATASETSIZE 134217728
+#define DATASETSIZE 262144
 
 #define PARAMETERSETSIZE 6
 
@@ -241,14 +241,15 @@ bool CreateMemObjects_dAgg(cl_context context, cl_mem memObjects[4], data *datas
     return true;
 }
 
-bool CreateMemObjects_cAggAgg(cl_context context, cl_mem memObjects[5], cAgg *c_agg, cAgg *c_agg_gen, int cubeDim[3], int cubeDim_gen[3], int dimToAggregate[1], int c_agg_size, int c_agg_gen_size)
+bool CreateMemObjects_cAggAgg(cl_context context, cl_mem memObjects[6], cAgg *c_agg, cAgg *c_agg_gen, int cubeDim[3], int cubeDim_gen[3], int dimToAggregate[1], int c_agg_size, int c_agg_gen_size, int kernelN[1])
 {
     memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(cAgg) * c_agg_size, c_agg, NULL);
     memObjects[1] = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cAgg) * c_agg_gen_size, c_agg_gen, NULL);
     memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 3, cubeDim, NULL);
     memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * 3, cubeDim_gen, NULL);
     memObjects[4] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 1, dimToAggregate, NULL);
-    if(memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL || memObjects[3] == NULL || memObjects[4] == NULL)
+    memObjects[5] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 1, kernelN, NULL);
+    if(memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL || memObjects[3] == NULL || memObjects[4] == NULL || memObjects[5] == NULL)
     {
         cerr << "Error creating memory objects." << endl;
         return false;
@@ -269,8 +270,8 @@ int main(int argc, char *argv[])
     cout << "Type other things to exit this program" << endl;
     cout << "Select a test:";
 
-    char chkchar;
-    cin >> chkchar;
+    char chkchar = 'a';
+    //cin >> chkchar;
 
     if(chkchar == 'g')
     {
@@ -512,6 +513,12 @@ int main(int argc, char *argv[])
         //int ggg;
         //cin >> ggg;
 
+        //Test
+        int tmp = 0;
+        for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
+            tmp += c_agg_result[i].totalCount;
+        cout << tmp << endl;
+
         //Summary
         cout << endl << "Summary:" << endl << endl;
 
@@ -684,7 +691,9 @@ int main(int argc, char *argv[])
         int cubeDim[3];
         cubeDim[0] = dimInfo[0], cubeDim[1] = dimInfo[1], cubeDim[2] = dimInfo[2];
         int cubeDim_gen[3];
+        cubeDim_gen[0] = cubeDim[0], cubeDim_gen[1] = cubeDim[1], cubeDim_gen[2] = cubeDim[2];
         int currentCellNumber = totalCellNumber, generateCellNumber;
+        int kernelN[1] = {KERNELNUMBER};
 
         cAgg *c_agg_intermediate[4];
 
@@ -712,7 +721,7 @@ int main(int argc, char *argv[])
             c_agg_intermediate[k + 1] = new cAgg[generateCellNumber];
 
             //Memory Object generation
-            if(!CreateMemObjects_cAggAgg(context, memObjects, c_agg_intermediate[k], c_agg_intermediate[k + 1], cubeDim, cubeDim_gen, dimToAggregate, currentCellNumber, generateCellNumber))
+            if(!CreateMemObjects_cAggAgg(context, memObjects, c_agg_intermediate[k], c_agg_intermediate[k + 1], cubeDim, cubeDim_gen, dimToAggregate, currentCellNumber, generateCellNumber, kernelN))
             {
                 Cleanup(context, commandQueue, program, kernel, memObjects);
                 return 1;
@@ -724,6 +733,7 @@ int main(int argc, char *argv[])
             errNum |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &memObjects[2]);
             errNum |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &memObjects[3]);
             errNum |= clSetKernelArg(kernel, 4, sizeof(cl_mem), &memObjects[4]);
+            errNum |= clSetKernelArg(kernel, 5, sizeof(cl_mem), &memObjects[5]);
             if(errNum != CL_SUCCESS)
             {
                 cerr << "Error setting kernel arguments." << endl;
@@ -744,7 +754,7 @@ int main(int argc, char *argv[])
             cl_ulong time_4_end;
 
             size_t globalWorkSize[1];
-            globalWorkSize[0] = generateCellNumber;
+            globalWorkSize[0] = KERNELNUMBER;
             size_t localWorkSize[1] = {1};
             cl_event event_copyInAndExecute, event_copyCuboidOut, event_copyDimInfoOut;
 
@@ -771,7 +781,7 @@ int main(int argc, char *argv[])
             }
             clWaitForEvents(1, &event_copyCuboidOut);
             clGetEventProfilingInfo(event_copyCuboidOut, CL_PROFILING_COMMAND_START, sizeof(time_4_mid2), &time_4_mid2, NULL);
-            clGetEventProfilingInfo(event_copyCuboidOut, CL_PROFILING_COMMAND_END, sizeof(time_4_end), &time_4_mid3, NULL);
+            clGetEventProfilingInfo(event_copyCuboidOut, CL_PROFILING_COMMAND_END, sizeof(time_4_mid3), &time_4_mid3, NULL);
 
             //Read the generated cuboid's dimension information
             errNum |= clEnqueueReadBuffer(commandQueue, memObjects[3], CL_TRUE, 0, sizeof(int) * 3, cubeDim_gen, 0, NULL, &event_copyDimInfoOut);
@@ -782,8 +792,8 @@ int main(int argc, char *argv[])
                 return 1;
             }
             clWaitForEvents(1, &event_copyDimInfoOut);
-            clGetEventProfilingInfo(event_copyDimInfoOut, CL_PROFILING_COMMAND_START, sizeof(time_4_mid4), &time_4_mid2, NULL);
-            clGetEventProfilingInfo(event_copyDimInfoOut, CL_PROFILING_COMMAND_END, sizeof(time_4_end), &time_4_mid3, NULL);
+            clGetEventProfilingInfo(event_copyDimInfoOut, CL_PROFILING_COMMAND_START, sizeof(time_4_mid4), &time_4_mid4, NULL);
+            clGetEventProfilingInfo(event_copyDimInfoOut, CL_PROFILING_COMMAND_END, sizeof(time_4_end), &time_4_end, NULL);
 
             //Prepare for next execution
             cubeDim[0] = cubeDim_gen[0], cubeDim[1] = cubeDim_gen[1], cubeDim[2] = cubeDim_gen[2];
@@ -812,6 +822,10 @@ int main(int argc, char *argv[])
 
                 cout << endl;
             }*/
+            /*int tmp = 0;
+            for(int i = 0; i < generateCellNumber; i++)
+                tmp += c_agg_intermediate[k + 1][i].totalCount;
+            cout << tmp << endl;*/
 
             cout << endl << "******************************" << endl;
 
@@ -819,7 +833,7 @@ int main(int argc, char *argv[])
             cout << (double)(time_3 - time_3_0) / CLOCKS_PER_SEC << " + ";
             cout << (double)(time_4_mid1 - time_4_start) / CLOCKS_PER_SEC / 1000 << " + ";
             cout << (double)(time_4_mid3 - time_4_mid2) / CLOCKS_PER_SEC / 1000 << " = ";
-            cout << ((double)(time_4_mid1 - time_4_start) + (double)(time_4_mid3 - time_4_mid2)) / CLOCKS_PER_SEC / 1000 << endl;
+            cout << (double)(time_3 - time_3_0) / CLOCKS_PER_SEC + ((double)(time_4_mid1 - time_4_start) + (double)(time_4_mid3 - time_4_mid2)) / CLOCKS_PER_SEC / 1000 << endl;
             cout << endl;
 
             cout << endl << "******************************" << endl;
