@@ -93,17 +93,17 @@ cl_context CreateContext()
     {
         CL_CONTEXT_PLATFORM, (cl_context_properties)platformId[platformIdToUse], 0
     };
-    context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
-    if(errNum != CL_SUCCESS)
-    {
-        cout << "Could not create GPU context, trying CPU..." << endl;
+    //context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
+    //if(errNum != CL_SUCCESS)
+    //{
+        //cout << "Could not create GPU context, trying CPU..." << endl;
         context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU, NULL, NULL, &errNum);
         if(errNum != CL_SUCCESS)
         {
             cerr << "Could not create an OpenCL GPU or CPU context." << endl;
             return NULL;
         }
-    }
+    //}
     return context;
 }
 
