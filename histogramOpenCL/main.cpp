@@ -15,12 +15,14 @@
 #else
 #endif
 
-#define DATASETSIZE 262144
+#define DATASETSIZE 16777216
 
 #define PARAMETERSETSIZE 6
 
 #define BUFFERSIZE 128
 #define BUILDLOGSIZE 16384
+
+#define DATASETPARTNUMBER 16
 
 #define KERNELNUMBER 16
 
@@ -91,17 +93,17 @@ cl_context CreateContext()
     {
         CL_CONTEXT_PLATFORM, (cl_context_properties)platformId[platformIdToUse], 0
     };
-    //context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
-    //if(errNum != CL_SUCCESS)
-    //{
-    //    cout << "Could not create GPU context, trying CPU..." << endl;
+    context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
+    if(errNum != CL_SUCCESS)
+    {
+        cout << "Could not create GPU context, trying CPU..." << endl;
         context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU, NULL, NULL, &errNum);
         if(errNum != CL_SUCCESS)
         {
             cerr << "Could not create an OpenCL GPU or CPU context." << endl;
             return NULL;
         }
-    //}
+    }
     return context;
 }
 
@@ -229,10 +231,10 @@ bool CreateMemObjects_cAgg(cl_context context, cl_mem memObjects[4], data *datas
 
 bool CreateMemObjects_dAgg(cl_context context, cl_mem memObjects[4], data *dataset, int parameterSet[PARAMETERSETSIZE], int cubeDim[3], dAgg *d_agg)
 {
-    memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(data) * DATASETSIZE, dataset, NULL);
+    memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(data) * parameterSet[0], dataset, NULL);
     memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * PARAMETERSETSIZE, parameterSet, NULL);
     memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * 3, cubeDim, NULL);
-    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(dAgg) * KERNELNUMBER, d_agg, NULL);
+    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(dAgg) * parameterSet[5], d_agg, NULL);
     if(memObjects[0] == NULL || memObjects[1] == NULL || memObjects[2] == NULL || memObjects[3] == NULL)
     {
         cerr << "Error creating memory objects." << endl;
@@ -270,8 +272,8 @@ int main(int argc, char *argv[])
     cout << "Type other things to exit this program" << endl;
     cout << "Select a test:";
 
-    char chkchar = 'a';
-    //cin >> chkchar;
+    char chkchar;
+    cin >> chkchar;
 
     if(chkchar == 'g')
     {
@@ -404,7 +406,13 @@ int main(int argc, char *argv[])
         //cAgg initialization
         cAgg c_agg[DIMX * DIMY * DIMZ];
         cAgg c_agg_result[DIMX * DIMY * DIMZ];
-        for(int i = 0; i < DIMX * DIMY * DIMZ; i++) c_agg_result[i].histogramType = 99999;
+        for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
+        {
+            c_agg_result[i].histogramType = 99999;
+            c_agg_result[i].max = c_agg_result[i].min = c_agg_result[i].sum = c_agg_result[i].totalCount = 0;
+            for(int j = 0; j < HIS_INTERVAL_NUM; j++)
+                c_agg_result[i].histogramIntervalCount[j] = 0;
+        }
         //for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
             //initCell_cAgg(&c_agg[i]);
         //dAgg initialization
@@ -412,7 +420,7 @@ int main(int argc, char *argv[])
         dAgg *d_agg_result = new dAgg[KERNELNUMBER];
 
         //Scan dataset and get maximum and minimum value of the whole set
-        globalMaxMinLinearScan(dataset, DATASETSIZE, &parameterSet[3], &parameterSet[4]);
+        globalMaxMinLinearScan(dataset, parameterSet[0], &parameterSet[3], &parameterSet[4]);
 
         //Memory Object generation
         //cAgg part
@@ -483,6 +491,32 @@ int main(int argc, char *argv[])
         int time_4_0 = clock();
         cout << time_4_0 << endl;
 
+        //Test part
+        /*for(int j = 24920; j < DIMX * DIMY * DIMZ; j++)
+        {
+            cout << "*********************************************************" << endl;
+            for(int i = 0; i < KERNELNUMBER; i++)
+            {
+                cout << d_agg_result[i].d_c_agg[j].cubeNum << endl;
+                cout << d_agg_result[i].d_c_agg[j].totalCount << endl;
+                cout << d_agg_result[i].d_c_agg[j].max << " " << d_agg_result[i].d_c_agg[j].min << endl;
+                cout << d_agg_result[i].d_c_agg[j].sum << endl;
+                //cout << c_agg_result[i].avg << endl;
+
+                for(int k = 0; k <= HIS_INTERVAL_NUM; k++)
+                {
+                    cout << d_agg_result[i].d_c_agg[j].histogramIntervalMark[k];
+                    if(k < HIS_INTERVAL_NUM)
+                        cout << " " << d_agg_result[i].d_c_agg[j].histogramIntervalCount[k];
+                    cout << endl;
+                }
+
+                cout << endl;
+            }
+
+        }*/
+
+
         //dAgg -> cAgg part
         for(int i = 0; i < KERNELNUMBER; i++)
         {
@@ -491,6 +525,8 @@ int main(int argc, char *argv[])
                 c_agg_result[j].cubeNum = j;
                 c_agg_result[j].totalCount += d_agg_result[i].d_c_agg[j].totalCount;
                 c_agg_result[j].sum += d_agg_result[i].d_c_agg[j].sum;
+                //Test part
+                //if(j > 24920) cout << i << " " << j << " " << c_agg_result[j].sum << endl;
 
                 if(i == 0 | c_agg_result[j].max < d_agg_result[i].d_c_agg[j].max)
                     c_agg_result[j].max = d_agg_result[i].d_c_agg[j].max;
@@ -506,6 +542,8 @@ int main(int argc, char *argv[])
             }
         }
 
+
+
         int time_4 = clock();
         cout << time_4 << endl;
 
@@ -514,10 +552,10 @@ int main(int argc, char *argv[])
         //cin >> ggg;
 
         //Test
-        int tmp = 0;
+        /*int tmp = 0;
         for(int i = 0; i < DIMX * DIMY * DIMZ; i++)
             tmp += c_agg_result[i].totalCount;
-        cout << tmp << endl;
+        cout << tmp << endl;*/
 
         //Summary
         cout << endl << "Summary:" << endl << endl;
