@@ -15,7 +15,7 @@
 #else
 #endif
 
-#define DATASETSIZE 262144
+#define DATASETSIZE 16777216
 
 #define PARAMETERSETSIZE 6
 
@@ -270,8 +270,8 @@ int main(int argc, char *argv[])
     cout << "Type other things to exit this program" << endl;
     cout << "Select a test:";
 
-    char chkchar = 'a';
-    //cin >> chkchar;
+    char chkchar;
+    cin >> chkchar;
 
     if(chkchar == 'g')
     {
@@ -707,11 +707,11 @@ int main(int argc, char *argv[])
             //At first we should decide which dimension we need to aggregate
             int dimToAggregate[1];
             //Using greedy algorithm
-            dimToAggregate[0] = decideDimensionToAggregate(cubeDim);
+            //dimToAggregate[0] = decideDimensionToAggregate(cubeDim);
             //...Or not to use the algorithm
-            //if(k == 0) dimToAggregate[0] = Z_AGGREGATE;
-            //else if(k == 1) dimToAggregate[0] = X_AGGREGATE;
-            //else if(k == 2) dimToAggregate[0] = Y_AGGREGATE;
+            if(k == 0) dimToAggregate[0] = Z_AGGREGATE;
+            else if(k == 1) dimToAggregate[0] = X_AGGREGATE;
+            else if(k == 2) dimToAggregate[0] = Y_AGGREGATE;
 
             //Calculate the size of the generated cuboid
             if(dimToAggregate[0] == X_AGGREGATE) generateCellNumber = currentCellNumber / cubeDim[0];
